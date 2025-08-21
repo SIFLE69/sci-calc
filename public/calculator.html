@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Scientific + Matrix Calculator (Fraction-aware)</title>
+
+  <!-- Tailwind CDN for quick styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- MathJS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@11.9.0/lib/browser/math.js"></script>
+
+  <style>
+    /* small tweaks for input cell sizing */
+    .matrix-cell { min-width: 64px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace; }
+    .result-box { white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, monospace; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen p-6">
+
+  <div class="max-w-6xl mx-auto">
+    <div class="bg-white rounded-2xl shadow p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-semibold">Scientific + Matrix Calculator — Fraction-aware</h1>
+        <div class="flex gap-2 items-center">
+          <label class="text-sm">Mode:</label>
+          <div class="bg-amber-50 rounded px-2 py-1 text-sm">
+            <button id="mode-toggle" class="font-medium">Matrix</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shared controls -->
+      <div class="flex gap-4 mb-4 items-center">
+        <div>
+          <label class="text-sm mr-2">Angle Mode:</label>
+          <button id="angle-toggle" class="px-2 py-1 bg-slate-100 rounded">DEG</button>
+        </div>
+        <div>
+          <label class="text-sm mr-2">Prefer fractions:</label>
+          <input id="preferFractionCheckbox" type="checkbox" checked />
+        </div>
+        <div class="ml-auto text-sm text-slate-500">
+          Tip: matrix inputs accept numbers, fractions (1/2), and expressions (sqrt(2), pi/6).
+        </div>
+      </div>
+
+      <!-- SCIENTIFIC MODE -->
+      <div id="scientific-mode" class="hidden">
+        <div class="bg-slate-900 text-white rounded-lg p-4 mb-4">
+          <input id="sci-input" class="w-full bg-transparent outline-none text-xl mono" placeholder="Type expression, ex: sin(30) or (1/3 + 0.25) * 6" />
+          <div class="mt-2 text-right text-sm text-slate-300">Result: <span id="sci-result" class="font-semibold mono"></span></div>
+        </div>
+
+        <div class="grid grid-cols-6 gap-2">
+          <!-- buttons (abbreviated set) -->
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('7')">7</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('8')">8</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('9')">9</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('/')">/</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('sin(')">sin(</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('cos(')">cos(</button>
+
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('4')">4</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('5')">5</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('6')">6</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('*')">*</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('tan(')">tan(</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('log(')">log(</button>
+
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('1')">1</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('2')">2</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('3')">3</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('-')">-</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('sqrt(')">sqrt(</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('^')">^</button>
+
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('0')">0</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('.')">.</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('pi')">pi</button>
+          <button class="py-2 rounded bg-white border" onclick="sciAppend('e')">e</button>
+          <button class="py-2 rounded bg-white border" onclick="sciClear()">C</button>
+          <button class="py-2 rounded bg-indigo-600 text-white" onclick="sciEval()">=</button>
+        </div>
+
+        <div class="mt-3 flex gap-2">
+          <button class="px-3 py-2 rounded bg-slate-100 border" onclick="sciPasteSample()">Load example</button>
+          <button class="px-3 py-2 rounded bg-slate-100 border" onclick="copyText('sci-result')">Copy result</button>
+        </div>
+      </div>
+
+      <!-- MATRIX MODE -->
+      <div id="matrix-mode">
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="bg-slate-50 p-3 rounded border">
+            <h3 class="font-medium mb-2">Create matrix / determinant</h3>
+            <div class="flex gap-2 items-center mb-2">
+              <label class="text-sm">Rows</label>
+              <input id="mat-rows" type="number" min="1" max="8" value="2" class="w-16 px-2 py-1 rounded border" />
+              <label class="text-sm">Cols</label>
+              <input id="mat-cols" type="number" min="1" max="8" value="2" class="w-16 px-2 py-1 rounded border" />
+              <button class="px-3 py-1 bg-indigo-600 text-white rounded" onclick="createMatrixGrid()">Create</button>
+            </div>
+
+            <div class="mb-2">
+              <label class="text-sm">Or paste matrix literal (JS style):</label>
+              <input id="matrix-literal" class="w-full px-2 py-1 rounded border mono" placeholder="e.g. [[1,2],[3,4]] or [[1/2, sqrt(2)],[pi, 0]]" />
+              <div class="mt-2 text-xs text-slate-500">If you paste literal and press Parse, it'll fill the grid (creates grid if needed).</div>
+              <div class="mt-2 flex gap-2">
+                <button class="px-3 py-1 bg-slate-100 rounded border" onclick="parseLiteralToGrid()">Parse</button>
+                <button class="px-3 py-1 bg-slate-100 rounded border" onclick="clearGrid()">Clear grid</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-slate-50 p-3 rounded border">
+            <h3 class="font-medium mb-2">Operations</h3>
+
+            <div class="mb-2">
+              <label class="text-sm">Select operation</label>
+              <select id="matrix-op" class="w-full px-2 py-1 rounded border">
+                <option value="det">Determinant (det)</option>
+                <option value="inv">Inverse (inv)</option>
+                <option value="transpose">Transpose</option>
+                <option value="adj">Adjoint (adj)</option>
+                <option value="rank">Rank</option>
+                <option value="mul">Multiply by another matrix</option>
+                <option value="add">Add another matrix</option>
+                <option value="sub">Subtract another matrix</option>
+                <option value="pow">Power (A^n)</option>
+              </select>
+            </div>
+
+            <div id="other-matrix-area" class="mb-2 hidden">
+              <label class="text-sm">Other matrix (for add/mul/sub) — define dims & create:</label>
+              <div class="flex gap-2 mt-2 items-center">
+                <input id="other-rows" type="number" min="1" max="8" value="2" class="w-16 px-2 py-1 rounded border" />
+                <input id="other-cols" type="number" min="1" max="8" value="2" class="w-16 px-2 py-1 rounded border" />
+                <button class="px-3 py-1 bg-slate-100 rounded border" onclick="createOtherGrid()">Create other</button>
+                <button class="px-3 py-1 bg-slate-100 rounded border" onclick="clearOtherGrid()">Clear other</button>
+              </div>
+            </div>
+
+            <div id="pow-area" class="mb-2 hidden">
+              <label class="text-sm">Exponent (integer n, for A^n):</label>
+              <input id="pow-n" type="number" value="2" class="w-20 px-2 py-1 rounded border mt-1" />
+            </div>
+
+            <div class="flex gap-2 mt-3">
+              <button class="px-3 py-2 bg-indigo-600 text-white rounded" onclick="runMatrixOp()">Run</button>
+              <button class="px-3 py-2 bg-slate-100 rounded border" onclick="copyResult()">Copy result</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grid area -->
+        <div class="mb-4">
+          <h3 class="font-medium mb-2">Matrix Inputs</h3>
+          <div id="grid-wrap" class="inline-block bg-white rounded border p-2"></div>
+
+          <div id="other-grid-wrap" class="inline-block ml-6 bg-white rounded border p-2 hidden"></div>
+        </div>
+
+        <!-- Result -->
+        <div class="bg-slate-900 text-white p-3 rounded result-box">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="text-sm text-slate-300">Result</div>
+              <div id="matrix-result" class="font-semibold mono mt-1"></div>
+            </div>
+            <div class="text-xs text-slate-300">
+              <div>Display: <span id="display-mode">fractions if possible</span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+<script>
+/*
+  Standalone logic using mathjs global (math).
+  - Supports fraction-like formatting via math.format(..., { fraction: 'ratio' })
+  - Matrix grid inputs parse via math.evaluate so entries like "1/2", "sqrt(2)", "pi/6" work.
+*/
+
+const modeToggleBtn = document.getElementById('mode-toggle');
+const scientificMode = document.getElementById('scientific-mode');
+const matrixMode = document.getElementById('matrix-mode');
+const angleToggle = document.getElementById('angle-toggle');
+const preferFractionCheckbox = document.getElementById('preferFractionCheckbox');
+
+let angleMode = 'DEG'; // 'DEG' or 'RAD'
+angleToggle.textContent = angleMode;
+
+modeToggleBtn.addEventListener('click', () => {
+  if (matrixMode.style.display === 'none' || matrixMode.classList.contains('hidden')) {
+    // switch to matrix
+    showMatrixMode();
+  } else {
+    showScientificMode();
+  }
+});
+
+function showScientificMode() {
+  scientificMode.classList.remove('hidden');
+  matrixMode.classList.add('hidden');
+  modeToggleBtn.textContent = 'Scientific';
+}
+function showMatrixMode() {
+  scientificMode.classList.add('hidden');
+  matrixMode.classList.remove('hidden');
+  modeToggleBtn.textContent = 'Matrix';
+}
+
+// default starting mode: Matrix (user asked earlier)
+showMatrixMode();
+
+angleToggle.addEventListener('click', () => {
+  angleMode = (angleMode === 'DEG') ? 'RAD' : 'DEG';
+  angleToggle.textContent = angleMode;
+});
+
+// ---------- SCIENTIFIC calculators ----------
+const sciInput = document.getElementById('sci-input');
+const sciResult = document.getElementById('sci-result');
+
+function sciAppend(s) {
+  sciInput.value += s;
+  sciInput.focus();
+}
+function sciClear() {
+  sciInput.value = '';
+  sciResult.textContent = '';
+}
+function sciPasteSample() {
+  sciInput.value = 'sin(30) + 1/3';
+  sciResult.textContent = '';
+}
+function copyText(elId) {
+  const t = document.getElementById(elId).textContent || '';
+  navigator.clipboard?.writeText(t);
+}
+function sciEval() {
+  const raw = sciInput.value.trim();
+  if (!raw) return;
+  try {
+    const pre = preprocessSci(raw);
+    const v = math.evaluate(pre);
+    sciResult.textContent = formatAny(v, preferFractionCheckbox.checked);
+  } catch (err) {
+    sciResult.textContent = 'Error: ' + (err.message || err);
+  }
+}
+
+// Preprocess scientific expression: handle DEG wrap for trig functions
+function preprocessSci(s) {
+  if (!s) return s;
+  // simple replace PI uppercase:
+  let out = s.replace(/\bPI\b/gi, 'pi').replace(/\bE\b/g,'e');
+  // degree symbol
+  out = out.replace(/(\d+(\.\d+)?)\s*°/g,'$1 deg');
+  if (angleMode === 'DEG') {
+    // for user convenience allow sin(30) -> sin(unit(30,'deg'))
+    // We'll replace sin(...), cos(...), tan(...) occurrences that don't already mention unit or deg.
+    const forward = ['sin','cos','tan','sinh','cosh','tanh'];
+    const inverse = ['asin','acos','atan'];
+    for (const fn of forward) {
+      out = out.replace(new RegExp(fn + '\\s*\\(([^)]*)\\)', 'gi'), (m, g1) => {
+        if (/\bdeg\b|unit\(/i.test(g1)) return `${fn}(${g1})`;
+        return `${fn}(unit((${g1}),'deg'))`;
+      });
+    }
+    for (const fn of inverse) {
+      out = out.replace(new RegExp(fn + '\\s*\\(([^)]*)\\)', 'gi'), (m, g1) => {
+        return `(${fn}(${g1}) * 180 / pi)`;
+      });
+    }
+  }
+  return out;
+}
+
+// ---------- formatting helpers ----------
+function formatAny(v, preferFraction=true) {
+  // if it's array (matrix)
+  if (Array.isArray(v)) {
+    return formatMatrix(v, preferFraction);
+  }
+  // mathjs typed objects may exist
+  const t = math.typeOf ? math.typeOf(v) : (typeof v);
+  if (t === 'Fraction') {
+    const num = v.valueOf();
+    return v.toString() + ' (' + formatNumber(num) + ')';
+  }
+  if (t === 'Complex') {
+    const re = formatNumber(v.re);
+    const im = formatNumber(Math.abs(v.im));
+    return `${re} ${v.im >= 0 ? '+' : '-'} ${im}i`;
+  }
+  if (t === 'BigNumber') {
+    return formatNumber(v.toNumber(), preferFraction);
+  }
+  if (typeof v === 'number') {
+    return formatNumber(v, preferFraction);
+  }
+  // fallback: try math.format (works for matrices, etc)
+  try {
+    return math.format(v, { fraction: (preferFraction ? 'ratio' : false), precision: 12 });
+  } catch (e) {
+    return String(v);
+  }
+}
+function formatNumber(x, preferFraction=true) {
+  if (!isFinite(x)) return String(x);
+  if (preferFraction) {
+    // attempt math.format with fraction ratio
+    try {
+      const f = math.format(x, { fraction: 'ratio', precision: 12 });
+      // mathjs sometimes returns like "2/1" -> convert to "2"
+      if (/^(-?\d+)\/1$/.test(f)) return f.replace(/\/1$/,'') + ' (' + Number.parseFloat(x.toPrecision(12)) + ')';
+      // if result is "0.333333333333" math.format might not convert -> fallback
+      return f + ' (' + Number.parseFloat(x.toPrecision(12)) + ')';
+    } catch(e) {
+      return Number.parseFloat(x.toPrecision(12)).toString();
+    }
+  } else {
+    return Number.parseFloat(x.toPrecision(12)).toString();
+  }
+}
+function formatMatrix(mat, preferFraction=true) {
+  // mat is array of arrays
+  const rows = mat.map(row => '[' + row.map(cell => {
+    // cell might be number or mathjs type; try evaluate format
+    try {
+      // convert cell to primitive if possible
+      if (typeof cell === 'number') return formatNumber(cell, preferFraction);
+      return formatAny(cell, preferFraction);
+    } catch (e) {
+      return String(cell);
+    }
+  }).join(', ') + ']');
+  return '[' + rows.join(', ') + ']';
+}
+
+// ---------- MATRIX UI and logic ----------
+let gridRows = 0, gridCols = 0;
+let otherGridRows = 0, otherGridCols = 0;
+
+function createMatrixGrid() {
+  const r = parseInt(document.getElementById('mat-rows').value) || 0;
+  const c = parseInt(document.getElementById('mat-cols').value) || 0;
+  if (r < 1 || c < 1 || r > 8 || c > 8) {
+    alert('Rows and cols must be between 1 and 8');
+    return;
+  }
+  gridRows = r; gridCols = c;
+  const wrap = document.getElementById('grid-wrap');
+  wrap.innerHTML = '';
+  const table = document.createElement('table');
+  table.className = 'border-collapse';
+  for (let i=0;i<r;i++) {
+    const tr = document.createElement('tr');
+    for (let j=0;j<c;j++) {
+      const td = document.createElement('td');
+      td.className = 'p-1';
+      const input = document.createElement('input');
+      input.className = 'matrix-cell px-2 py-1 border rounded mono';
+      input.dataset.r = i; input.dataset.c = j;
+      input.placeholder = '0';
+      input.value = (i===j && i===0 && r===2 && c===2) ? '1' : ''; // nothing by default
+      td.appendChild(input);
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+  wrap.appendChild(table);
+  document.getElementById('other-grid-wrap').classList.add('hidden');
+  document.getElementById('matrix-result').textContent = '';
+}
+
+function clearGrid() {
+  const wrap = document.getElementById('grid-wrap');
+  wrap.innerHTML = '';
+  gridRows = gridCols = 0;
+}
+
+function createOtherGrid() {
+  const r = parseInt(document.getElementById('other-rows').value) || 0;
+  const c = parseInt(document.getElementById('other-cols').value) || 0;
+  if (r < 1 || c < 1 || r > 8 || c > 8) {
+    alert('Rows and cols must be between 1 and 8 for other matrix');
+    return;
+  }
+  otherGridRows = r; otherGridCols = c;
+  const wrap = document.getElementById('other-grid-wrap');
+  wrap.innerHTML = '';
+  const table = document.createElement('table');
+  table.className = 'border-collapse';
+  for (let i=0;i<r;i++) {
+    const tr = document.createElement('tr');
+    for (let j=0;j<c;j++) {
+      const td = document.createElement('td');
+      td.className = 'p-1';
+      const input = document.createElement('input');
+      input.className = 'matrix-cell px-2 py-1 border rounded mono';
+      input.dataset.r = i; input.dataset.c = j; input.dataset.other = '1';
+      input.placeholder = '0';
+      tr.appendChild(td);
+      td.appendChild(input);
+    }
+    table.appendChild(tr);
+  }
+  wrap.appendChild(table);
+  wrap.classList.remove('hidden');
+}
+
+function clearOtherGrid() {
+  document.getElementById('other-grid-wrap').innerHTML = '';
+  document.getElementById('other-grid-wrap').classList.add('hidden');
+  otherGridRows = otherGridCols = 0;
+}
+
+// Parse literal into grid, or create grid then fill
+function parseLiteralToGrid() {
+  const lit = document.getElementById('matrix-literal').value.trim();
+  if (!lit) { alert('Enter a matrix literal'); return; }
+  try {
+    // Use math.evaluate on the literal to allow expressions inside
+    const evaluated = math.evaluate(lit);
+    if (!Array.isArray(evaluated)) {
+      alert('Parsed result is not a matrix/array. Use a nested array like [[1,2],[3,4]]');
+      return;
+    }
+    const rows = evaluated.length;
+    const cols = evaluated[0].length || 0;
+    if (!rows || !cols) { alert('Invalid matrix shape'); return; }
+    document.getElementById('mat-rows').value = rows;
+    document.getElementById('mat-cols').value = cols;
+    createMatrixGrid();
+    // fill grid inputs with provided values formatted as entered (we can't preserve exact original text for complex expressions, but will fill with math.format)
+    const wrap = document.getElementById('grid-wrap');
+    const inputs = wrap.querySelectorAll('input.matrix-cell');
+    inputs.forEach(inp => {
+      const r = parseInt(inp.dataset.r); const c = parseInt(inp.dataset.c);
+      let val = evaluated[r][c];
+      // represent as user-friendly expression if possible
+      try {
+        inp.value = math.format(val, { fraction: 'ratio', precision: 12 });
+      } catch (e) {
+        inp.value = String(val);
+      }
+    });
+  } catch (err) {
+    alert('Error parsing literal: ' + (err.message || err));
+  }
+}
+
+// Read grid into math-friendly nested arrays by evaluating each cell
+function readGrid(isOther = false) {
+  const selector = isOther ? '#other-grid-wrap input.matrix-cell' : '#grid-wrap input.matrix-cell';
+  const inputs = Array.from(document.querySelectorAll(selector));
+  if (inputs.length === 0) return null;
+  // determine rows/cols from dataset
+  const maxR = Math.max(...inputs.map(i => Number(i.dataset.r)));
+  const maxC = Math.max(...inputs.map(i => Number(i.dataset.c)));
+  const rows = maxR + 1; const cols = maxC + 1;
+  const mat = Array.from({length: rows}, ()=>Array(cols).fill(0));
+  for (const inp of inputs) {
+    const r = Number(inp.dataset.r); const c = Number(inp.dataset.c);
+    const raw = (inp.value || '').trim();
+    if (raw === '') {
+      mat[r][c] = 0;
+      continue;
+    }
+    try {
+      // use preprocess for degrees and constants for inner expressions
+      const pre = preprocessSci(raw);
+      const val = math.evaluate(pre);
+      // convert to primitive numbers or keep Fractions/BigNumbers as mathjs objects (math.js matrix ops handle them)
+      mat[r][c] = val;
+    } catch (err) {
+      throw new Error(`Cell [${r+1},${c+1}] parse error: ${err.message || err}`);
+    }
+  }
+  return mat;
+}
+
+// Matrix adjoint (adjugate)
+function adjoint(m) {
+  // m is array of arrays
+  const size = math.size(m).valueOf();
+  if (size.length !== 2 || size[0] !== size[1]) throw new Error('adj: matrix must be square');
+  const n = size[0];
+  const cofactor = [];
+  for (let i=0;i<n;i++) {
+    const row = [];
+    for (let j=0;j<n;j++) {
+      // build minor
+      const minor = [];
+      for (let r=0;r<n;r++) {
+        if (r === i) continue;
+        const minorRow = [];
+        for (let c=0;c<n;c++) {
+          if (c === j) continue;
+          minorRow.push(m[r][c]);
+        }
+        minor.push(minorRow);
+      }
+      const minorDet = math.det(minor);
+      const sign = ((i + j) % 2 === 0) ? 1 : -1;
+      row.push(math.multiply(sign, minorDet));
+    }
+    cofactor.push(row);
+  }
+  return math.transpose(cofactor);
+}
+
+// show/hide other matrix & power UI depending on operation selected
+const opSelect = document.getElementById('matrix-op');
+opSelect.addEventListener('change', () => {
+  const v = opSelect.value;
+  const other = document.getElementById('other-matrix-area');
+  const otherWrap = document.getElementById('other-grid-wrap');
+  const powArea = document.getElementById('pow-area');
+  if (['mul','add','sub'].includes(v)) {
+    other.classList.remove('hidden');
+    powArea.classList.add('hidden');
+    // ensure other grid area is visible if created
+    if (otherGridRows && otherGridCols) otherWrap.classList.remove('hidden');
+  } else {
+    other.classList.add('hidden');
+    otherWrap.classList.add('hidden');
+    if (v === 'pow') powArea.classList.remove('hidden'); else powArea.classList.add('hidden');
+  }
+});
+
+// run operation
+function runMatrixOp() {
+  try {
+    const matA = readGrid(false);
+    if (matA == null) { alert('Create matrix A first'); return; }
+
+    const op = opSelect.value;
+    let out;
+    if (op === 'det') {
+      if (math.size(matA).valueOf()[0] !== math.size(matA).valueOf()[1]) throw new Error('det requires square matrix');
+      out = math.det(matA);
+      document.getElementById('matrix-result').textContent = formatAny(out, preferFractionCheckbox.checked);
+      return;
+    }
+    if (op === 'inv') {
+      if (math.size(matA).valueOf()[0] !== math.size(matA).valueOf()[1]) throw new Error('inv requires square matrix');
+      out = math.inv(matA);
+      document.getElementById('matrix-result').textContent = formatAny(out, preferFractionCheckbox.checked);
+      return;
+    }
+    if (op === 'transpose') {
+      out = math.transpose(matA);
+      document.getElementById('matrix-result').textContent = formatAny(out, preferFractionCheckbox.checked);
+      return;
+    }
+    if (op === 'adj') {
+      out = adjoint(matA);
+      document.getElementById('matrix-result').textContent = formatAny(out, preferFractionCheckbox.checked);
+      return;
+    }
+    if (op === 'rank') {
+      out = math.rank(matA);
+      document.getElementById('matrix-result').textContent = formatAny(out, preferFractionCheckbox.checked);
+      return;
+    }
+    if (op === 'pow') {
+      const n = parseInt(document.getElementById('pow-n').value);
+      if (!Number.isInteger(n)) throw new Error('Exponent must be integer');
+      if (math.size(matA).valueOf()[0] !== math.size(matA).valueOf()[1]) throw new Error('power requires square matrix');
+      out = math.pow(matA, n);
+      document.getElementById('matrix-result').textContent = formatAny(out, preferFractionCheckbox.checked);
+      return;
+    }
+    // binary ops: need other matrix
+    if (['add','sub','mul'].includes(op)) {
+      const matB = readGrid(true);
+      if (matB == null) { alert('Create other matrix first'); return; }
+      if (op === 'add' || op === 'sub') {
+        // dimension check
+        if (math.size(matA).valueOf()[0] !== math.size(matB).valueOf()[0] ||
+            math.size(matA).valueOf()[1] !== math.size(matB).valueOf()[1]) {
+          throw new Error('Addition/Subtraction require same dimensions');
+        }
+        out = (op === 'add') ? math.add(matA, matB) : math.subtract(matA, matB);
+        document.getElementById('matrix-result').textContent = formatAny(out, preferFractionCheckbox.checked);
+        return;
+      }
+      if (op === 'mul') {
+        // check matA cols == matB rows
+        if (math.size(matA).valueOf()[1] !== math.size(matB).valueOf()[0]) {
+          throw new Error('For multiplication, A.columns must equal B.rows');
+        }
+        out = math.multiply(matA, matB);
+        document.getElementById('matrix-result').textContent = formatAny(out, preferFractionCheckbox.checked);
+        return;
+      }
+    }
+
+    throw new Error('Unknown operation');
+  } catch (err) {
+    document.getElementById('matrix-result').textContent = 'Error: ' + (err.message || err);
+  }
+}
+
+function copyResult() {
+  const t = document.getElementById('matrix-result').textContent || '';
+  navigator.clipboard?.writeText(t);
+}
+
+// helper to format anything (shared)
+function formatAny(v, preferFraction=true) {
+  // using earlier formatAny defined for scientific mode
+  return window.formatAny ? window.formatAny(v, preferFraction) : (typeof v === 'string' ? v : String(v));
+}
+
+// expose formatAny to inner functions (so matrix-run can call same formatting)
+window.formatAny = function(v, preferFraction=true) {
+  // reuse the earlier defined format functions inside the script scope
+  // but since they are defined as functions above, call them
+  // For safety, implement a small wrapper that tries math.format then fallback
+  try {
+    if (Array.isArray(v)) {
+      // format matrix: map elements with math.format
+      const rows = v.map(row => '[' + row.map(cell => {
+        try {
+          if (typeof cell === 'number') return formatNumber(cell, preferFraction);
+          // try math.format which handles Fractions and BigNumbers
+          return math.format(cell, { fraction: (preferFraction ? 'ratio' : false), precision: 12 });
+        } catch (e) {
+          return String(cell);
+        }
+      }).join(', ') + ']');
+      return '[' + rows.join(', ') + ']';
+    }
+    // non-array
+    const t = math.typeOf ? math.typeOf(v) : typeof v;
+    if (t === 'Fraction') {
+      const num = v.valueOf();
+      return v.toString() + ' (' + formatNumber(num, preferFraction) + ')';
+    }
+    if (t === 'BigNumber') {
+      return formatNumber(v.toNumber(), preferFraction);
+    }
+    if (t === 'Complex') {
+      const re = formatNumber(v.re, preferFraction);
+      const im = formatNumber(Math.abs(v.im), preferFraction);
+      return `${re} ${v.im >= 0 ? '+' : '-'} ${im}i`;
+    }
+    if (typeof v === 'number') {
+      return formatNumber(v, preferFraction);
+    }
+    // fallback to math.format
+    return math.format(v, { fraction: (preferFraction ? 'ratio' : false), precision: 12 });
+  } catch (e) {
+    return String(v);
+  }
+};
+
+// expose helper formatNumber (used above)
+function formatNumber(x, preferFraction=true) {
+  if (!isFinite(x)) return String(x);
+  if (preferFraction) {
+    try {
+      const f = math.format(x, { fraction: 'ratio', precision: 12 });
+      if (/^(-?\d+)\/1$/.test(f)) return f.replace(/\/1$/,'') + ' (' + Number.parseFloat(x.toPrecision(12)) + ')';
+      return f + ' (' + Number.parseFloat(x.toPrecision(12)) + ')';
+    } catch(e) {
+      return Number.parseFloat(x.toPrecision(12)).toString();
+    }
+  } else {
+    return Number.parseFloat(x.toPrecision(12)).toString();
+  }
+}
+
+// expose formatNumber globally too
+window.formatNumber = formatNumber;
+
+// attach preferFraction checkbox effect on display indicator
+const displayModeEl = document.getElementById('display-mode');
+preferFractionCheckbox.addEventListener('change', () => {
+  displayModeEl.textContent = preferFractionCheckbox.checked ? 'fractions if possible' : 'decimals';
+});
+
+// initialize small default
+createMatrixGrid();
+</script>
+</body>
+</html>
